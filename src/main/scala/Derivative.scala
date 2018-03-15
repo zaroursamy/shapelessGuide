@@ -1,4 +1,4 @@
-import shapeless.{Generic, HList, HNil}
+import shapeless.{Generic, HList, HNil, Lazy}
 
 trait CsvEncoder[A] {
   def encode(value: A): List[String]
@@ -99,8 +99,8 @@ object Derivative3 {
 
   import shapeless.::
 
-  implicit def hlistEncoder[H, T <: HList](implicit encoderH: CsvEncoder[H], encoderT: CsvEncoder[T]): CsvEncoder[H :: T] = instance(hlist =>
-    encoderH.encode(hlist.head) ++ encoderT.encode(hlist.tail)
+  implicit def hlistEncoder[H, T <: HList](implicit encoderH: Lazy[CsvEncoder[H]], encoderT: CsvEncoder[T]): CsvEncoder[H :: T] = instance(hlist =>
+    encoderH.value.encode(hlist.head) ++ encoderT.encode(hlist.tail)
   )
 
   val reprEncoder: CsvEncoder[String :: Int :: Boolean :: HNil] = implicitly
@@ -108,11 +108,44 @@ object Derivative3 {
   val glaces = List(IceCream("a", 1, true), IceCream("b", 2, false))
 
   implicit def genericEncoder[A, R](implicit generic: Generic.Aux[A, R] /* equivalent to generic:  Generic[A]{type Repr=R] */ ,
-                                    repr: CsvEncoder[R]): CsvEncoder[A] = instance((a: A) => repr.encode(generic.to(a)))
+                                    repr: Lazy[CsvEncoder[R]]): CsvEncoder[A] = instance((a: A) => repr.value.encode(generic.to(a)))
 
   def main(args: Array[String]): Unit = {
+
     println(CsvWriter.writeCsv(glaces))
   }
 
 
 }
+
+
+/* // Problem compilator version scala
+sealed trait Shape
+
+case class Circle(rayon: Double) extends Shape
+
+case class Rectangle(longueur: Double, largeur: Double) extends Shape
+
+object Derivative4 {
+
+  import shapeless.{Coproduct, :+:, CNil, Inl, Inr}
+
+  implicit def coproductEncoder[H, T <: Coproduct](implicit hEnc: CsvEncoder[H],
+                                                   tEnc: CsvEncoder[T]): CsvEncoder[H :+: T] = CsvEncoder.instance({
+    case Inl(l) => hEnc.encode(l)
+    case Inr(r) => tEnc.encode(r)
+  })
+  implicit val cnilEncoder: CsvEncoder[CNil] = CsvEncoder.instance(_ => Nil)
+  implicit val doubleEncoder: CsvEncoder[Double] = CsvEncoder.instance((d: Double) => List(d.toString))
+
+  val shapes: List[Shape] = List(Circle(1), Rectangle(1, 1))
+
+  def main(args: Array[String]): Unit = {
+
+
+
+    println(CsvWriter.writeCsv(shapes))
+  }
+}
+*/
+
